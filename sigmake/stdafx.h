@@ -19,8 +19,8 @@ extern "C"
 //
 // X64DBG
 //
-#define PLUGIN_NAME		"SigMake"
-#define PLUGIN_VERSION	001
+#define PLUGIN_NAME        "SigMake"
+#define PLUGIN_VERSION    001
 
 #ifdef _WIN64
 #pragma comment(lib, "pluginsdk/x64dbg.lib")
