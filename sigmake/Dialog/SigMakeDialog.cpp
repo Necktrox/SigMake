@@ -104,6 +104,10 @@ void MakeSigDialogConvert(HWND hwndDlg, SIGNATURE_TYPE To, SIGNATURE_TYPE From)
 
 void MakeSigDialogExecute(HWND hwndDlg)
 {
+    ClearSigMakeOutput(hwndDlg);
+    WriteSigMakeOutput(hwndDlg, "Searching...");
+    GuiUpdateAllViews();
+
 	int dataLen = GetWindowTextLength(GetDlgItem(hwndDlg, IDC_SIGMAKE_EDIT1)) + 1;
 	int maskLen = GetWindowTextLength(GetDlgItem(hwndDlg, IDC_SIGMAKE_EDIT2)) + 1;
 
@@ -129,7 +133,6 @@ void MakeSigDialogExecute(HWND hwndDlg)
 	// Scan
 	//
 	std::vector<duint> results;
-
 	PatternScan(desc, results);
 
 	//
@@ -148,13 +151,24 @@ void MakeSigDialogExecute(HWND hwndDlg)
 		DbgDisasmAt(match, &inst);
 
 		char temp[32];
-		sprintf_s(temp, "%p", match);
+		sprintf_s(temp, "%p", (void *)match);
 
 		GuiReferenceSetCellContent(i, 0, temp);
 		GuiReferenceSetCellContent(i++, 1, inst.instruction);
 	}
 
 	_plugin_logprintf("Found %d references(s)\n", results.size());
+
+    ClearSigMakeOutput(hwndDlg);
+    WriteSigMakeFormatted(hwndDlg, "Found %d references(s):\r\n", results.size());
+
+    for (const auto& match : results)
+    {
+        DISASM_INSTR inst;
+        DbgDisasmAt(match, &inst);
+        WriteSigMakeFormatted(hwndDlg, "%p - %s\r\n", (void *)match, inst.instruction);
+    }
+
 	GuiReferenceSetProgress(100);
 	GuiUpdateAllViews();
 
@@ -214,8 +228,6 @@ INT_PTR CALLBACK MakeSigDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARA
 		case IDC_SIGMAKE_SCAN:
 			// Scan for the signature
 			MakeSigDialogExecute(hwndDlg);
-
-			CLOSE_WINDOW(hwndDlg, g_SigMakeDialog);
 			break;
 
 		case IDC_SIGMAKE_CANCEL:
@@ -291,4 +303,50 @@ void DestroySigMakeDialog()
 {
 	if (g_SigMakeDialog)
 		SendMessage(g_SigMakeDialog, WM_CLOSE, 0, 0);
+}
+
+void ClearSigMakeOutput(HWND hwndDlg)
+{
+    SetWindowText(GetDlgItem(hwndDlg, IDC_SIGMAKE_OUTPUT), nullptr);
+}
+
+void WriteSigMakeOutput(HWND hwndDlg, const char * const text)
+{
+    //
+    // Create a buffer
+    //
+    int textLen = strlen(text);
+    int dataLen = GetWindowTextLength(GetDlgItem(hwndDlg, IDC_SIGMAKE_OUTPUT));
+    char *data = (char *)BridgeAlloc(textLen + dataLen + 1);
+
+    if (!data)
+    {
+        return;
+    }
+
+    //
+    // Fill the buffer
+    //
+    GetWindowText(GetDlgItem(hwndDlg, IDC_SIGMAKE_OUTPUT), data, dataLen + 1);
+    strcat_s(data, textLen + dataLen + 1, text);
+
+    //
+    // Overwrite output
+    //
+    SetWindowText(GetDlgItem(hwndDlg, IDC_SIGMAKE_OUTPUT), data);
+
+    //
+    // Cleanup
+    //
+    BridgeFree(data);
+}
+
+void WriteSigMakeFormatted(HWND hwndDlg, const char * const format, ...)
+{
+    static char buffer[2048] = { 0 };
+    va_list args;
+    va_start(args, format);
+    vsnprintf_s(buffer, sizeof(buffer), format, args);
+    WriteSigMakeOutput(hwndDlg, buffer);
+    va_end(args);
 }
